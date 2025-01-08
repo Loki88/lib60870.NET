@@ -2207,7 +2207,6 @@ namespace tests
             int waitTime = 1000;
             int enqueuedMessage = 0;
             int maxLoop = server.MaxQueueSize + 3;
-            int loopCount = 0;
             while (running && server.IsRunning())
             {
                 Thread.Sleep(100);
