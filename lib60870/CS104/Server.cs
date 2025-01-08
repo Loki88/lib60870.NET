@@ -425,12 +425,18 @@ namespace lib60870.CS104
 
         internal void AddConnection(ClientConnection connection)
         {
-            connections.Add(connection);
+            lock (this)
+            {
+                connections.Add(connection);
+            }
         }
 
         internal void RemoveConnection(ClientConnection connection)
         {
-            connections.Remove(connection);
+            lock (this)
+            {
+                connections.Remove(connection);
+            }
         }
 
         internal bool Matches(IPAddress ipAddress)
@@ -454,22 +460,26 @@ namespace lib60870.CS104
 
         private bool HasConnection(ClientConnection con)
         {
-            foreach (ClientConnection connection in connections)
+            lock (this)
             {
-                if (connection == con)
+                foreach (ClientConnection connection in connections)
                 {
-                    return true;
+                    if (connection == con)
+                    {
+                        return true;
+                    }
                 }
-            }
 
-            return false;
+                return false;
+            }
         }
 
         internal void Activate(ClientConnection activeConnection)
         {
             if (HasConnection(activeConnection))
             {
-                foreach (ClientConnection connection in connections)
+                List<ClientConnection> tmp = new List<ClientConnection>(connections);
+                foreach (ClientConnection connection in tmp)
                 {
                     if (connection != activeConnection)
                     {
@@ -884,17 +894,20 @@ namespace lib60870.CS104
 
         internal void Remove(ClientConnection connection)
         {
-            CallConnectionEventHandler(connection, ClientConnectionEvent.CLOSED);
-
-            if ((serverMode == ServerMode.MULTIPLE_REDUNDANCY_GROUPS) || (serverMode == ServerMode.SINGLE_REDUNDANCY_GROUP))
+            lock (this)
             {
-                foreach (RedundancyGroup redGroup in redGroups)
-                {
-                    redGroup.RemoveConnection(connection);
-                }
-            }
+                CallConnectionEventHandler(connection, ClientConnectionEvent.CLOSED);
 
-            allOpenConnections.Remove(connection);
+                if ((serverMode == ServerMode.MULTIPLE_REDUNDANCY_GROUPS) || (serverMode == ServerMode.SINGLE_REDUNDANCY_GROUP))
+                {
+                    foreach (RedundancyGroup redGroup in redGroups)
+                    {
+                        redGroup.RemoveConnection(connection);
+                    }
+                }
+
+                allOpenConnections.Remove(connection);
+            }
         }
 
         /// <summary>
@@ -966,30 +979,32 @@ namespace lib60870.CS104
         /// </summary>
         public void Stop()
         {
-            running = false;
-
-            try
+            lock (this)
             {
+                running = false;
                 try
                 {
-                    listeningSocket.Shutdown(SocketShutdown.Both);
-                }
-                catch (SocketException ex)
-                {
-                    DebugLog("SocketException: " + ex.Message);
-                }
+                    try
+                    {
+                        listeningSocket.Shutdown(SocketShutdown.Both);
+                    }
+                    catch (SocketException ex)
+                    {
+                        DebugLog("SocketException: " + ex.Message);
+                    }
 
-                listeningSocket.Close();
+                    listeningSocket.Close();
 
-                // close all open connection
-                foreach (ClientConnection connection in allOpenConnections)
-                {
-                    connection.Close();
+                    // close all open connection
+                    foreach (ClientConnection connection in allOpenConnections)
+                    {
+                        connection.Close();
+                    }
                 }
-            }
-            catch (Exception e)
-            {
-                DebugLog("Exception: " + e.Message);
+                catch (Exception e)
+                {
+                    DebugLog("Exception: " + e.Message);
+                }
             }
         }
 
